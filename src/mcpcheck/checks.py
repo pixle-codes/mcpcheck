@@ -4,6 +4,7 @@ import dataclasses
 from typing import Any, List, Optional
 
 from .client import Client
+from .http_transport import HttpError
 
 KNOWN_VERSIONS = {
     "2024-11-05",
@@ -99,10 +100,20 @@ def check_handshake(client: Client, report: Report, protocol_version: str) -> Op
         resp = _initialize(client, protocol_version)
     except TimeoutError:
         report.add(_err("C01", "server did not answer 'initialize' within timeout"))
-        if client.crashed:
+        note = client.failure_note()
+        if note:
+            report.add(_err("C01b", f"{note} during handshake"))
+        return None
+    except HttpError as exc:
+        if getattr(client, "kind", "") == "http" and exc.status == 401:
             report.add(
-                _err("C01b", f"server process exited during handshake (code {client.proc.returncode})")
+                _ok("C01", "endpoint requires authentication (HTTP 401); running auth-discovery checks")
             )
+            return None
+        report.add(_err("C01", f"handshake failed: {exc}"))
+        return None
+    except ConnectionError as exc:
+        report.spawn_error = str(exc)
         return None
     except Exception as exc:
         report.add(_err("C01", f"handshake failed: {exc}"))
@@ -457,17 +468,42 @@ def check_optional_lists(client: Client, report: Report, capabilities: dict):
 
 
 def check_transport_hygiene(client: Client, report: Report):
-    if client.pollution:
-        sample = "; ".join(client.pollution[:3])
-        report.add(
-            _err(
-                "P01",
-                f"stdout pollution: {len(client.pollution)} non-JSON-RPC line(s) on stdout "
-                f"(breaks stdio transport). Sample: {sample}",
+    if getattr(client, "kind", "stdio") == "http":
+        if client.pollution:
+            sample = "; ".join(client.pollution[:3])
+            report.add(
+                _err(
+                    "P01",
+                    f"response pollution: {len(client.pollution)} response body(s) were neither "
+                    f"application/json nor parseable SSE. Sample: {sample}",
+                )
             )
-        )
+        else:
+            report.add(_ok("P01", "all responses carried JSON or SSE payloads"))
+        if client.content_type_violations:
+            sample = "; ".join(client.content_type_violations[:3])
+            report.add(
+                _err(
+                    "H03",
+                    f"invalid response Content-Type: {len(client.content_type_violations)} "
+                    f"response(s) used something other than application/json or "
+                    f"text/event-stream. Sample: {sample}",
+                )
+            )
+        else:
+            report.add(_ok("H03", "every response Content-Type was application/json or text/event-stream"))
     else:
-        report.add(_ok("P01", "stdout carried only JSON-RPC messages"))
+        if client.pollution:
+            sample = "; ".join(client.pollution[:3])
+            report.add(
+                _err(
+                    "P01",
+                    f"stdout pollution: {len(client.pollution)} non-JSON-RPC line(s) on stdout "
+                    f"(breaks stdio transport). Sample: {sample}",
+                )
+            )
+        else:
+            report.add(_ok("P01", "stdout carried only JSON-RPC messages"))
     if client.malformed:
         sample = "; ".join(client.malformed[:3])
         report.add(
@@ -482,8 +518,12 @@ def check_transport_hygiene(client: Client, report: Report):
         report.add(_ok("P02", "all stdout JSON lines were valid JSON-RPC envelopes"))
 
 
-def run_checks(cmd, timeout=10.0, protocol_version="2025-06-18"):
+def run_checks(cmd=None, timeout=10.0, protocol_version="2025-06-18", url=None):
     report = Report()
+    if url is not None:
+        from .checks_http import run_http_checks
+
+        return run_http_checks(url, timeout=timeout, protocol_version=protocol_version)
     try:
         client = Client(cmd, timeout=timeout)
     except Exception as exc:

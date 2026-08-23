@@ -162,6 +162,11 @@ class Client:
     def crashed(self):
         return self.proc.poll() is not None
 
+    def failure_note(self):
+        if self.proc.poll() is not None:
+            return f"server process exited (code {self.proc.returncode})"
+        return ""
+
     def stderr_tail(self, n=10):
         return "\n".join(self.stderr_lines[-n:])
 

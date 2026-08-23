@@ -51,6 +51,9 @@ pip install .
 # smoke-test a stdio server (everything after -- is the spawn command)
 mcpcheck run -- node dist/server.js
 
+# audit a Streamable HTTP server
+mcpcheck run --url https://mcp.example.com/mcp
+
 # useful flags
 --timeout 10                 # per-request timeout, seconds
 --protocol-version V         # protocolVersion to offer during initialize
@@ -61,6 +64,23 @@ mcpcheck run -- node dist/server.js
 Exit codes: `0` all checks passed · `1` findings/errors · `2` could not run server.
 Warnings do not fail the run unless you pass `--fail-on warning` — handy as a stricter
 CI gate once your server is clean.
+
+### Streamable HTTP & OAuth discovery
+
+For HTTP targets mcpcheck speaks the Streamable HTTP transport: POST with
+`Accept: application/json, text/event-stream`, SSE response parsing, and
+`Mcp-Session-Id` echo after initialize. If the endpoint answers **401**, it grades the
+auth-discovery story instead of failing blindly:
+
+- **A01** — is there a parseable `WWW-Authenticate` challenge? Does it carry the
+  RFC 9728 `resource_metadata` pointer?
+- **A02** — fetch the Protected Resource Metadata document and validate it:
+  required `resource`, string arrays for `authorization_servers` / `scopes_supported`,
+  and whether `resource` actually matches the audited origin (a mismatch means tokens
+  minted for it will be rejected).
+
+A server that gates correctly and advertises valid metadata passes clean; one that 401s
+without a challenge or points at broken metadata fails with actionable findings.
 
 ### GitHub Actions
 
@@ -86,17 +106,22 @@ CI gate once your server is clean.
 | C10  | Declared `resources`/`prompts` capabilities actually serve their list methods |
 | C11  | Pagination round-trip: follows `nextCursor`, catches non-string cursors, loops, erroring/empty pages |
 | C12  | Tool annotations: `title` string; `readOnlyHint`/`destructiveHint`/`idempotentHint`/`openWorldHint` booleans |
-| P01  | Stdout purity — any non-JSON-RPC line fails (the classic silent killer) |
+| H02  | Streamable HTTP: `Mcp-Session-Id` issued at initialize and echoed on every later request |
+| H03  | HTTP responses use `application/json` or `text/event-stream` |
+| H04  | GET stream behaves per spec: SSE, `405`, auth-gated, or held open — not a random status |
+| A01  | 401 responses carry a parseable `WWW-Authenticate` challenge (with RFC 9728 pointer where applicable) |
+| A02  | Protected Resource Metadata document validates: required `resource`, string arrays for servers/scopes, origin match |
+| P01  | Stdout purity (stdio) / response-body purity (HTTP) — non-protocol payloads fail |
 | P02  | JSON-RPC envelope validity — stdout lines that parse as JSON but violate the envelope (missing `"jsonrpc":"2.0"`, neither response nor notification) fail |
 
 ## Development
 
 ```bash
-python3 -m unittest discover -s tests   # fixture servers included, no network needed
+python3 -m unittest discover -s tests   # fixture servers (stdio + in-process HTTP), no network needed
 ```
 
-See [PLAN.md](PLAN.md) for architecture and roadmap (Streamable HTTP transport + OAuth
-assertion set, config file for multi-server repos).
+See [PLAN.md](PLAN.md) for architecture and roadmap (config file for multi-server repos,
+deeper OAuth authorization-server metadata checks).
 
 ## License
 

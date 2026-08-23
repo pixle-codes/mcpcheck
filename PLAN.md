@@ -1,6 +1,6 @@
 # mcpcheck — headless conformance & smoke-test runner for MCP servers
 
-Status: M2 done (session 2, 2026-08-23)
+Status: M3 done (session 4, 2026-08-23)
 
 ## Problem
 MCP (Model Context Protocol) is the dominant integration standard for AI agents — tens of
@@ -73,8 +73,15 @@ Storage: none (stateless runner). Python 3.13, stdlib only.
       P02 (JSON on stdout missing jsonrpc member / not a message shape), --fail-on
       warning CI gate. 32 tests. Validated against real `mcp` SDK server
       (MCPServer layout): zero false positives.
-- [ ] **M3 — HTTP transport**: Streamable HTTP target (`--url`), OAuth challenge/PRM metadata
-      assertion set from the spec (401 + WWW-Authenticate → RFC 9728 document checks).
+- [x] **M3 — HTTP transport (done, session 4)**: Streamable HTTP target (`--url`):
+      POST + Accept negotiation, SSE data-frame parsing, Mcp-Session-Id capture & echo,
+      Mcp-Protocol-Version header after handshake; H02 session / H03 content-type / H04
+      GET-stream checks; auth set A01 (401 challenge WWW-Authenticate parse, RFC 9728
+      resource_metadata pointer or conventional-location probes) and A02 (PRM doc
+      validation: required `resource`, string arrays for authorization_servers/
+      scopes_supported, origin-match warning). Hygiene P01/P02/H03 transport-aware.
+      59 tests (27 new) incl. threaded stdlib http.server fixture. Validated against real
+      official SDK Streamable HTTP server: clean pass; caught case-sensitive header bug.
 - [ ] **M4 — v1.0**: config file (`.mcpcheck.json`) for multi-server projects, docs site
       section in README with CI examples (GitHub Actions), tag v1.0.
 
@@ -90,3 +97,11 @@ Storage: none (stateless runner). Python 3.13, stdlib only.
   (`vtypes` guard) to avoid confusing double-reporting.
 - Session 2: real-world validation target is official SDK — installed layout has no
   fastmcp submodule; use `mcp.server.mcpserver.MCPServer` + `@mcp.tool(annotations=...)`.
+- Session 4: `dict(resp.headers)` is CASE-SENSITIVE — uvicorn sends lowercase
+  `content-type`, `mcp-session-id`; always normalize to lowercase keys before lookup.
+  Real-SDK validation caught this (initialize "timed out" because ctype looked empty).
+- Session 4: hygiene buckets (pollution/content-type) only track 2xx payloads — a 401's
+  text/plain body is informational, not protocol pollution; JSON-RPC error bodies on 4xx
+  are still parsed for request() detail.
+- Session 4: a proper 401 auth gate downgrades C01 to info — protected servers get graded
+  on challenge quality (A01/A02), not failed for being locked.
