@@ -54,11 +54,13 @@ mcpcheck run -- node dist/server.js
 # useful flags
 --timeout 10                 # per-request timeout, seconds
 --protocol-version V         # protocolVersion to offer during initialize
+--fail-on warning            # make warnings fail the run too (default: error)
 --json                       # machine-readable report (includes exit_code)
 ```
 
 Exit codes: `0` all checks passed · `1` findings/errors · `2` could not run server.
-Warnings do not fail the run.
+Warnings do not fail the run unless you pass `--fail-on warning` — handy as a stricter
+CI gate once your server is clean.
 
 ### GitHub Actions
 
@@ -79,10 +81,13 @@ Warnings do not fail the run.
 | C04  | `serverInfo.name`/`version` present; `capabilities` is an object |
 | C06  | Accepts `notifications/initialized`, answers `ping` with `{}` |
 | C07  | `tools/list`: array shape, required `name`/`inputSchema`, descriptions present; capability declared when tools exist |
-| C08  | `inputSchema` validity: type object, properties object, `required` ⊆ `properties` |
-| C09  | Duplicate tool names |
+| C08  | Deep `inputSchema` lint: root type object, valid JSON Schema types, `required` ⊆ `properties` (recursively into nested objects/arrays), `enum`/`default`/`examples` type sanity, `outputSchema.type == "object"` |
+| C09  | Duplicate tool names (within and across pages) |
 | C10  | Declared `resources`/`prompts` capabilities actually serve their list methods |
+| C11  | Pagination round-trip: follows `nextCursor`, catches non-string cursors, loops, erroring/empty pages |
+| C12  | Tool annotations: `title` string; `readOnlyHint`/`destructiveHint`/`idempotentHint`/`openWorldHint` booleans |
 | P01  | Stdout purity — any non-JSON-RPC line fails (the classic silent killer) |
+| P02  | JSON-RPC envelope validity — stdout lines that parse as JSON but violate the envelope (missing `"jsonrpc":"2.0"`, neither response nor notification) fail |
 
 ## Development
 
@@ -90,8 +95,8 @@ Warnings do not fail the run.
 python3 -m unittest discover -s tests   # fixture servers included, no network needed
 ```
 
-See [PLAN.md](PLAN.md) for architecture and roadmap (HTTP transport + OAuth assertion set,
-JSON Schema deep linting, config file for multi-server repos).
+See [PLAN.md](PLAN.md) for architecture and roadmap (Streamable HTTP transport + OAuth
+assertion set, config file for multi-server repos).
 
 ## License
 

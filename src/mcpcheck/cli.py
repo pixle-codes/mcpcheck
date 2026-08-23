@@ -16,6 +16,12 @@ def build_parser():
     run.add_argument("cmd", nargs=argparse.REMAINDER, help="server command to spawn, after --")
     run.add_argument("--timeout", type=float, default=10.0, help="per-request timeout in seconds")
     run.add_argument("--protocol-version", default="2025-06-18", help="protocolVersion to offer")
+    run.add_argument(
+        "--fail-on",
+        choices=("error", "warning"),
+        default="error",
+        help="lowest severity that fails the run (exit code 1)",
+    )
     run.add_argument("--json", action="store_true", dest="as_json", help="machine-readable output")
 
     return p
@@ -34,7 +40,7 @@ def main(argv=None):
         timeout=args.timeout,
         protocol_version=args.protocol_version,
     )
-    code = emit(report, as_json=args.as_json)
+    code = emit(report, as_json=args.as_json, fail_on=args.fail_on)
     sys.exit(code)
 
 

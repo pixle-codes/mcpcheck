@@ -17,6 +17,7 @@ class Client:
         self.cmd = cmd
         self.timeout = timeout
         self.pollution = []
+        self.malformed = []
         self.stderr_lines = []
         self.notifications = []
         try:
@@ -53,16 +54,30 @@ class Client:
                         self.pollution.append(line[:300])
                     continue
                 if not isinstance(msg, dict):
-                    if len(self.pollution) < 50:
-                        self.pollution.append(line[:300])
+                    self._record_malformed(line)
                     continue
+                envelope_ok = msg.get("jsonrpc") == "2.0"
                 if "id" in msg and ("result" in msg or "error" in msg):
+                    if not envelope_ok and len(self.malformed) < 50:
+                        self.malformed.append(
+                            f"response missing jsonrpc:\"2.0\": {line[:200]}"
+                        )
                     self._inbox.put(msg)
-                else:
+                elif "method" in msg:
                     if len(self.notifications) < 200:
                         self.notifications.append(msg)
+                    if not envelope_ok and len(self.malformed) < 50:
+                        self.malformed.append(
+                            f"message missing jsonrpc:\"2.0\": {line[:200]}"
+                        )
+                else:
+                    self._record_malformed(line)
         except (ValueError, OSError):
             pass
+
+    def _record_malformed(self, line):
+        if len(self.malformed) < 50:
+            self.malformed.append(f"not a JSON-RPC message: {line[:200]}")
 
     def _drain_stderr(self):
         try:
@@ -135,6 +150,12 @@ class Client:
                     os.killpg(self.proc.pid, signal.SIGKILL)
                 except OSError:
                     pass
+        for stream in (self.proc.stdout, self.proc.stderr):
+            try:
+                if stream and not stream.closed:
+                    stream.close()
+            except OSError:
+                pass
         return self.proc.returncode
 
     @property

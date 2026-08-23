@@ -35,9 +35,25 @@ def main():
                         "description": "has bad required",
                         "inputSchema": {
                             "type": "object",
-                            "properties": {"x": {"type": "string"}},
+                            "properties": {
+                                "x": {"type": "string", "enum": [1, 2], "default": 9},
+                                "y": {"type": "strng"},
+                                "obj": {
+                                    "type": "object",
+                                    "properties": {"deep": {"type": "boolean"}},
+                                    "required": ["missing"],
+                                },
+                            },
                             "required": ["x", "ghost"],
                         },
+                    },
+                    {
+                        "name": "c",
+                        "description": "bad annotations and output schema",
+                        "title": 42,
+                        "annotations": {"readOnlyHint": "yes", "madeUpHint": True},
+                        "inputSchema": {"type": "object", "properties": {}},
+                        "outputSchema": {"type": "array"},
                     },
                 ]
             }
