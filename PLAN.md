@@ -61,9 +61,10 @@ mcpcheck run -- <server-cmd> [args...]
 Storage: none (stateless runner). Python 3.13, stdlib only.
 
 ## Milestones
-- [ ] **M1 — core runner (this session)**: stdio client, handshake + discovery + schema
-      checks C01–C08, text/json report, exit codes, unittest suite w/ good+bad fixture
-      servers, README, LICENSE, publish to GitHub.
+- [x] **M1 — core runner (done, session 1)**: stdio client, handshake + discovery + schema
+      checks C01–C08 (+C09 dupes, C10 lists, P01 purity), text/json report, exit codes,
+      14-test unittest suite w/ good/sloppy/broken fixture servers, README, LICENSE,
+      published https://github.com/pixle-codes/mcpcheck
 - [ ] **M2 — depth checks**: JSON Schema structural lint (required ⊆ properties, type
       correctness), annotations validation, pagination (cursor) round-trip, timeout &
       malformed-response tolerance checks, `--severity` threshold flag.
