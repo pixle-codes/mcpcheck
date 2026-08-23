@@ -1,6 +1,6 @@
 # mcpcheck — headless conformance & smoke-test runner for MCP servers
 
-Status: M1 in progress (session 1, 2026-08-23)
+Status: M2 done (session 2, 2026-08-23)
 
 ## Problem
 MCP (Model Context Protocol) is the dominant integration standard for AI agents — tens of
@@ -65,9 +65,14 @@ Storage: none (stateless runner). Python 3.13, stdlib only.
       checks C01–C08 (+C09 dupes, C10 lists, P01 purity), text/json report, exit codes,
       14-test unittest suite w/ good/sloppy/broken fixture servers, README, LICENSE,
       published https://github.com/pixle-codes/mcpcheck
-- [ ] **M2 — depth checks**: JSON Schema structural lint (required ⊆ properties, type
-      correctness), annotations validation, pagination (cursor) round-trip, timeout &
-      malformed-response tolerance checks, `--severity` threshold flag.
+- [x] **M2 — depth checks (done, session 2)**: recursive JSON Schema lint (valid types,
+      required⊆properties at every nesting level, enum/default/examples type sanity with
+      bool≠int), tool annotations C12 (title str, hints bool, unknown keys warn),
+      outputSchema.type=="object", pagination round-trip C11 (follows nextCursor; catches
+      non-string cursors, loops, error/empty pages, MAX_PAGES=20 cap), malformed-envelope
+      P02 (JSON on stdout missing jsonrpc member / not a message shape), --fail-on
+      warning CI gate. 32 tests. Validated against real `mcp` SDK server
+      (MCPServer layout): zero false positives.
 - [ ] **M3 — HTTP transport**: Streamable HTTP target (`--url`), OAuth challenge/PRM metadata
       assertion set from the spec (401 + WWW-Authenticate → RFC 9728 document checks).
 - [ ] **M4 — v1.0**: config file (`.mcpcheck.json`) for multi-server projects, docs site
@@ -79,3 +84,9 @@ Storage: none (stateless runner). Python 3.13, stdlib only.
   clear tooling gap vs Inspector.
 - Fixture servers for tests are minimal Python scripts speaking line-delimited JSON-RPC;
   keep them dependency-free.
+- Session 2: push needs one-off credential helper env (git can't read gh's keyring):
+  `GIT_CONFIG_COUNT=1 GIT_CONFIG_KEY_0=credential.helper GIT_CONFIG_VALUE_0='!gh auth git-credential' git push`.
+- Session 2: schema lint skips type-compat warnings when declared type itself is invalid
+  (`vtypes` guard) to avoid confusing double-reporting.
+- Session 2: real-world validation target is official SDK — installed layout has no
+  fastmcp submodule; use `mcp.server.mcpserver.MCPServer` + `@mcp.tool(annotations=...)`.
